@@ -9,7 +9,7 @@ import (
 	"log"
 
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
-	"github.com/hashicorp/terraform-provider-scaffolding-framework/internal/provider"
+	"github.com/skyscrapr/terraform-provider-okteto/okteto"
 )
 
 // Run "go generate" to format example terraform files and generate the docs for the registry/website
@@ -38,12 +38,11 @@ func main() {
 	flag.Parse()
 
 	opts := providerserver.ServeOpts{
-		// TODO: Update this string with the published name of your provider.
-		Address: "registry.terraform.io/hashicorp/scaffolding",
+		Address: "registry.terraform.io/skyscrapr/okteto",
 		Debug:   debug,
 	}
 
-	err := providerserver.Serve(context.Background(), provider.New(version), opts)
+	err := providerserver.Serve(context.Background(), okteto.New(version), opts)
 
 	if err != nil {
 		log.Fatal(err.Error())

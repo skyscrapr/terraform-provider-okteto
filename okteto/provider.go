@@ -1,13 +1,14 @@
 // Copyright (c) HashiCorp, Inc.
 // SPDX-License-Identifier: MPL-2.0
 
-package provider
+package okteto
 
 import (
 	"context"
-	"net/http"
+	"os"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -27,7 +28,8 @@ type ScaffoldingProvider struct {
 
 // ScaffoldingProviderModel describes the provider data model.
 type ScaffoldingProviderModel struct {
-	Endpoint types.String `tfsdk:"endpoint"`
+	ApiToken types.String `tfsdk:"api_token"`
+	Namespace types.String `tfsdk:"namespace"`
 }
 
 func (p *ScaffoldingProvider) Metadata(ctx context.Context, req provider.MetadataRequest, resp *provider.MetadataResponse) {
@@ -38,9 +40,13 @@ func (p *ScaffoldingProvider) Metadata(ctx context.Context, req provider.Metadat
 func (p *ScaffoldingProvider) Schema(ctx context.Context, req provider.SchemaRequest, resp *provider.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
-			"endpoint": schema.StringAttribute{
-				MarkdownDescription: "Example provider attribute",
-				Optional:            true,
+			"api_token ": schema.StringAttribute{
+				MarkdownDescription: "Okteto API Token",
+				Required:            true,
+			},
+			"namespace ": schema.StringAttribute{
+				MarkdownDescription: "Okteto Namespace",
+				Required:            true,
 			},
 		},
 	}
@@ -51,22 +57,36 @@ func (p *ScaffoldingProvider) Configure(ctx context.Context, req provider.Config
 
 	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
 
+	// Default values to environment variables, but override
+	// with Terraform configuration value if set.
+	api_token := os.Getenv("OKTETO_API_TOKEN")
+	if !data.ApiToken.IsNull() {
+		api_token = data.ApiToken.ValueString()
+	}
+
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
 	// Configuration values are now available.
-	// if data.Endpoint.IsNull() { /* ... */ }
+	if data.ApiToken.IsUnknown() {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("api_token"),
+			"No Okteto API Token",
+			"The provider cannot create the Okteto API client as there is an unknown configuration value for the Okteto API token. "+
+				"Either set the value statically in the configuration, or use the OKTETO_API_TOKEN environment variable.",
+		)
+	}
 
 	// Example client configuration for data sources and resources
-	client := http.DefaultClient
+	client := NewClient(api_token, data.Namespace.ValueString())
 	resp.DataSourceData = client
 	resp.ResourceData = client
 }
 
 func (p *ScaffoldingProvider) Resources(ctx context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
-		NewExampleResource,
+		NewSecretResource,
 	}
 }
 
