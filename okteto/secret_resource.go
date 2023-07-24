@@ -6,7 +6,6 @@ package okteto
 import (
 	"context"
 	"fmt"
-	"net/http"
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -27,14 +26,14 @@ func NewSecretResource() resource.Resource {
 
 // SecretResource defines the resource implementation.
 type SecretResource struct {
-	client *http.Client
+	client *Client
 }
 
 // SecretResourceModel describes the resource data model.
 type SecretResourceModel struct {
 	Value types.String `tfsdk:"value"`
-	Name             types.String `tfsdk:"name"`
-	Id                    types.String `tfsdk:"id"`
+	Key   types.String `tfsdk:"key"`
+	Id    types.String `tfsdk:"id"`
 }
 
 func (r *SecretResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -48,11 +47,11 @@ func (r *SecretResource) Schema(ctx context.Context, req resource.SchemaRequest,
 
 		Attributes: map[string]schema.Attribute{
 			"value": schema.StringAttribute{
-				MarkdownDescription: "Example configurable attribute",
+				MarkdownDescription: "Value",
 				Required:            true,
 			},
-			"name": schema.StringAttribute{
-				MarkdownDescription: "Example configurable attribute with default value",
+			"key": schema.StringAttribute{
+				MarkdownDescription: "Key",
 				Required:            true,
 			},
 			"id": schema.StringAttribute{
@@ -72,12 +71,12 @@ func (r *SecretResource) Configure(ctx context.Context, req resource.ConfigureRe
 		return
 	}
 
-	client, ok := req.ProviderData.(*http.Client)
+	client, ok := req.ProviderData.(*Client)
 
 	if !ok {
 		resp.Diagnostics.AddError(
 			"Unexpected Resource Configure Type",
-			fmt.Sprintf("Expected *http.Client, got: %T. Please report this issue to the provider developers.", req.ProviderData),
+			fmt.Sprintf("Expected *Client, got: %T. Please report this issue to the provider developers.", req.ProviderData),
 		)
 
 		return
@@ -96,21 +95,13 @@ func (r *SecretResource) Create(ctx context.Context, req resource.CreateRequest,
 		return
 	}
 
-	// If applicable, this is a great opportunity to initialize any necessary
-	// provider client data and make a call using it.
-	// httpResp, err := r.client.Do(httpReq)
-	// if err != nil {
-	//     resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create example, got error: %s", err))
-	//     return
-	// }
-
-	// For the purposes of this example code, hardcoding a response value to
-	// save into the Terraform state.
-	data.Id = types.StringValue("example-id")
-
-	// Write logs using the tflog package
-	// Documentation: https://terraform.io/plugin/log
-	tflog.Trace(ctx, "created a resource")
+	id, err := r.client.NewSecret(data.Key.ValueString(), data.Value.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create secret, got error: %s", err))
+		return
+	}
+	data.Id = types.StringValue(*id)
+	tflog.Trace(ctx, "created secret")
 
 	// Save data into Terraform state
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)

@@ -19,9 +19,9 @@ func TestAccSecretResource(t *testing.T) {
 			{
 				Config: testAccExampleResourceConfig("one"),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("okteto_secret.test", "configurable_attribute", "one"),
-					resource.TestCheckResourceAttr("okteto_secret.test", "defaulted", "example value when not configured"),
-					resource.TestCheckResourceAttr("okteto_secret.test", "id", "example-id"),
+					resource.TestCheckResourceAttrSet("okteto_secret.test", "id"),
+					resource.TestCheckResourceAttr("okteto_secret.test", "key", "test_one"),
+					resource.TestCheckResourceAttr("okteto_secret.test", "value", "value"),
 				),
 			},
 			// ImportState testing
@@ -39,7 +39,7 @@ func TestAccSecretResource(t *testing.T) {
 			{
 				Config: testAccExampleResourceConfig("two"),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("okteto_secret.test", "configurable_attribute", "two"),
+					resource.TestCheckResourceAttr("okteto_secret.test", "key", "test_two"),
 				),
 			},
 			// Delete testing automatically occurs in TestCase
@@ -47,10 +47,15 @@ func TestAccSecretResource(t *testing.T) {
 	})
 }
 
-func testAccExampleResourceConfig(configurableAttribute string) string {
+func testAccExampleResourceConfig(key_suffix string) string {
 	return fmt.Sprintf(`
-resource "okteto_secret" "test" {
-  configurable_attribute = %[1]q
+provider okteto {
+	namespace = "skyscrapr"
 }
-`, configurableAttribute)
+
+resource "okteto_secret" "test" {
+  key = "test_%[1]s"
+  value = "value"
+}
+`, key_suffix)
 }

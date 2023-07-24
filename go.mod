@@ -1,4 +1,4 @@
-module github.com/hashicorp/terraform-provider-okteto
+module github.com/skyscrapr/terraform-provider-okteto
 
 go 1.19
 

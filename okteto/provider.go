@@ -28,23 +28,23 @@ type ScaffoldingProvider struct {
 
 // ScaffoldingProviderModel describes the provider data model.
 type ScaffoldingProviderModel struct {
-	ApiToken types.String `tfsdk:"api_token"`
+	ApiToken  types.String `tfsdk:"api_token"`
 	Namespace types.String `tfsdk:"namespace"`
 }
 
 func (p *ScaffoldingProvider) Metadata(ctx context.Context, req provider.MetadataRequest, resp *provider.MetadataResponse) {
-	resp.TypeName = "scaffolding"
+	resp.TypeName = "okteto"
 	resp.Version = p.version
 }
 
 func (p *ScaffoldingProvider) Schema(ctx context.Context, req provider.SchemaRequest, resp *provider.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
-			"api_token ": schema.StringAttribute{
+			"api_token": schema.StringAttribute{
 				MarkdownDescription: "Okteto API Token",
-				Required:            true,
+				Optional:            true,
 			},
-			"namespace ": schema.StringAttribute{
+			"namespace": schema.StringAttribute{
 				MarkdownDescription: "Okteto Namespace",
 				Required:            true,
 			},

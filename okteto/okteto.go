@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	apiURL = "https://cloud.okteto.com/api"
+	apiURL = "https://cloud.okteto.com/graphql"
 )
 
 type Client struct {
@@ -33,36 +33,40 @@ func NewClient(apiToken string, namespace string) *Client {
 }
 
 type Secret struct {
-	Name  string            `json:"name"`
-	Value map[string]string `json:"value"`
+	Name  string `json:"name"`
+	Value string `json:"value"`
 }
 
 type SecretResponse struct {
 	ID string `json:"id"`
 }
 
-func (c *Client) NewSecret(name string, value map[string]string) (*string, error) {
-	secret := Secret{
-		Name:  name,
-		Value: value,
-	}
+func (c *Client) NewSecret(name string, value string) (*string, error) {
+	// Define the GraphQL mutation
+	mutation := `
+	mutation {
+		addSecret(input: {
+			name: "%s"
+			value: "%s"
+		}) {
+			name
+			value
+		}
+	}`
 
-	secretJSON, err := json.Marshal(secret)
-	if err != nil {
-		fmt.Println("Error marshaling secret:", err)
-		return nil, err
-	}
+	// Format the GraphQL mutation with the secret data
+	query := fmt.Sprintf(mutation, name, value)
 
-	url := fmt.Sprintf("%s/namespaces/%s/secrets", c.BaseURL.String(), c.Namespace)
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer(secretJSON))
+	// Prepare the API request
+	req, err := http.NewRequest("POST", oktetoAPIURL, bytes.NewBufferString(query))
 	if err != nil {
 		fmt.Println("Error creating request:", err)
 		return nil, err
 	}
-
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.apiToken))
+	req.Header.Set("Authorization", "Bearer "+c.apiToken)
 	req.Header.Set("Content-Type", "application/json")
 
+	// Send the API request
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
@@ -71,18 +75,73 @@ func (c *Client) NewSecret(name string, value map[string]string) (*string, error
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusCreated {
-		fmt.Printf("Failed to add secret. Status code: %d\n", resp.StatusCode)
+	// Check the API response
+	if resp.StatusCode != http.StatusOK {
+		fmt.Printf("Failed to add secret: %s\n", resp.Status)
 		return nil, err
 	}
 
-	var secretResp SecretResponse
-	err = json.NewDecoder(resp.Body).Decode(&secretResp)
+	// Parse the API response
+	var result map[string]map[string]map[string]interface{}
+	err = json.NewDecoder(resp.Body).Decode(&result)
 	if err != nil {
-		fmt.Println("Error decoding response", err)
+		fmt.Println("Error parsing response:", err)
 		return nil, err
 	}
 
-	fmt.Println("Secret added successfully!")
-	return &secretResp.ID, nil
+	// Check if the secret was added successfully
+	addedSecret := result["data"]["addSecret"]
+	if addedSecret != nil {
+		fmt.Println("Secret added successfully!")
+		fmt.Printf("Name: %s\n", addedSecret["name"])
+		fmt.Printf("Value: %s\n", addedSecret["value"])
+	} else {
+		fmt.Println("Failed to add secret.")
+		fmt.Println("Response:", result)
+	}
+
+	// secret := Secret{
+	// 	Name:  name,
+	// 	Value: value,
+	// }
+
+	// secretJSON, err := json.Marshal(secret)
+	// if err != nil {
+	// 	fmt.Println("Error marshaling secret:", err)
+	// 	return nil, err
+	// }
+
+	// url := fmt.Sprintf("%s/user/secrets", c.BaseURL.String())
+	// req, err := http.NewRequest("POST", url, bytes.NewBuffer(secretJSON))
+	// if err != nil {
+	// 	fmt.Println("Error creating request:", err)
+	// 	return nil, err
+	// }
+
+	// req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.apiToken))
+	// req.Header.Set("Content-Type", "application/json")
+
+	// client := &http.Client{}
+	// resp, err := client.Do(req)
+	// if err != nil {
+	// 	fmt.Println("Error sending request:", err)
+	// 	return nil, err
+	// }
+	// defer resp.Body.Close()
+
+	// if resp.StatusCode != http.StatusCreated {
+	// 	fmt.Printf("Failed to add secret. Status code: %d\n", resp.StatusCode)
+	// 	return nil, err
+	// }
+
+	// var secretResp SecretResponse
+	// err = json.NewDecoder(resp.Body).Decode(&secretResp)
+	// if err != nil {
+	// 	fmt.Println("Error decoding response", err)
+	// 	return nil, err
+	// }
+
+	// fmt.Println("Secret added successfully!")
+	// return &secretResp.ID, nil
+	return nil, nil
 }
