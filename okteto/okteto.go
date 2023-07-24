@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
-	"log"
 	"net/http"
 	"net/url"
 	"time"
@@ -134,46 +132,5 @@ func (c *Client) query(query string) (map[string]map[string]interface{}, error) 
 		fmt.Println("Error parsing response:", err)
 		return nil, err
 	}
-	return result, nil
-}
-
-func (c *Client) querytest(query string) (map[string]map[string]interface{}, error) {
-	// Prepare the API request
-	req, err := http.NewRequest("POST", apiURL, bytes.NewBufferString(query))
-	if err != nil {
-		fmt.Println("Error creating request:", err)
-		return nil, err
-	}
-	req.Header.Set("Authorization", "Bearer "+c.apiToken)
-	req.Header.Set("Content-Type", "application/json")
-
-	// Send the API request
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		fmt.Println("Error sending request:", err)
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	// Check the API response
-	if resp.StatusCode != http.StatusOK {
-		fmt.Printf("Failed to execute query: %s\n", resp.Status)
-		return nil, err
-	}
-
-	// Parse the API response
-	b, err := io.ReadAll(resp.Body)
-	if err != nil {
-		log.Fatalln(err)
-	}
-	fmt.Println(string(b))
-
-	var result map[string]map[string]interface{}
-	// err = json.NewDecoder(resp.Body).Decode(&result)
-	// if err != nil {
-	// 	fmt.Println("Error parsing response:", err)
-	// 	return nil, err
-	// }
 	return result, nil
 }
