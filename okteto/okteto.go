@@ -58,7 +58,7 @@ func (c *Client) NewSecret(name string, value string) (*string, error) {
 	query := fmt.Sprintf(mutation, name, value)
 
 	// Prepare the API request
-	req, err := http.NewRequest("POST", oktetoAPIURL, bytes.NewBufferString(query))
+	req, err := http.NewRequest("POST", apiURL, bytes.NewBufferString(query))
 	if err != nil {
 		fmt.Println("Error creating request:", err)
 		return nil, err
