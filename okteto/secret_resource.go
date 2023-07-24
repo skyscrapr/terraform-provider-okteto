@@ -32,7 +32,7 @@ type SecretResource struct {
 // SecretResourceModel describes the resource data model.
 type SecretResourceModel struct {
 	Value types.String `tfsdk:"value"`
-	Key   types.String `tfsdk:"key"`
+	Name  types.String `tfsdk:"name"`
 	Id    types.String `tfsdk:"id"`
 }
 
@@ -49,10 +49,17 @@ func (r *SecretResource) Schema(ctx context.Context, req resource.SchemaRequest,
 			"value": schema.StringAttribute{
 				MarkdownDescription: "Value",
 				Required:            true,
+				// Sensitive: true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
-			"key": schema.StringAttribute{
-				MarkdownDescription: "Key",
+			"name": schema.StringAttribute{
+				MarkdownDescription: "Name",
 				Required:            true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"id": schema.StringAttribute{
 				Computed:            true,
@@ -95,12 +102,12 @@ func (r *SecretResource) Create(ctx context.Context, req resource.CreateRequest,
 		return
 	}
 
-	id, err := r.client.NewSecret(data.Key.ValueString(), data.Value.ValueString())
+	err := r.client.NewSecret(data.Name.ValueString(), data.Value.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create secret, got error: %s", err))
 		return
 	}
-	data.Id = types.StringValue(*id)
+	data.Id = data.Name
 	tflog.Trace(ctx, "created secret")
 
 	// Save data into Terraform state
@@ -116,39 +123,18 @@ func (r *SecretResource) Read(ctx context.Context, req resource.ReadRequest, res
 	if resp.Diagnostics.HasError() {
 		return
 	}
-
-	// If applicable, this is a great opportunity to initialize any necessary
-	// provider client data and make a call using it.
-	// httpResp, err := r.client.Do(httpReq)
+	// err := r.client.GetSecret(data.Name.ValueString())
 	// if err != nil {
-	//     resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read example, got error: %s", err))
-	//     return
+	// 	resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read secret, got error: %s", err))
+	// 	return
 	// }
-
+	// tflog.Trace(ctx, "read secret")
 	// Save updated data into Terraform state
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
 func (r *SecretResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	var data *SecretResourceModel
 
-	// Read Terraform plan data into the model
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
-
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	// If applicable, this is a great opportunity to initialize any necessary
-	// provider client data and make a call using it.
-	// httpResp, err := r.client.Do(httpReq)
-	// if err != nil {
-	//     resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update example, got error: %s", err))
-	//     return
-	// }
-
-	// Save updated data into Terraform state
-	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
 func (r *SecretResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
@@ -161,13 +147,12 @@ func (r *SecretResource) Delete(ctx context.Context, req resource.DeleteRequest,
 		return
 	}
 
-	// If applicable, this is a great opportunity to initialize any necessary
-	// provider client data and make a call using it.
-	// httpResp, err := r.client.Do(httpReq)
-	// if err != nil {
-	//     resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to delete example, got error: %s", err))
-	//     return
-	// }
+	err := r.client.DeleteSecret(data.Name.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to delete secret, got error: %s", err))
+		return
+	}
+	tflog.Trace(ctx, "deleted secret")
 }
 
 func (r *SecretResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
