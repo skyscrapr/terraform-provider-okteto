@@ -3,6 +3,8 @@ package okteto
 import (
 	"bytes"
 	"encoding/json"
+	// "io"
+	// "log"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -94,6 +96,46 @@ func (c *Client) DeleteSecret(name string) error {
 	return nil
 }
 
+func (c *Client) NewPipeline(namespace string, name string, repo string, branch string) error {
+	// Define the GraphQL mutation
+	mutation := `{"query":"mutation deployGitRepository($name: String!, $space: String!, $source: String!, $branch: String, $repository: String!, $installationId: String, $variables: [InputVariable], $filename: String, $catalogItemId: String) {\n  deployGitRepository(\n    name: $name\n    space: $space\n    source: $source\n    branch: $branch\n    repository: $repository\n    installationId: $installationId\n    variables: $variables\n    filename: $filename\n    catalogItemId: $catalogItemId\n  ) {\n    gitDeploy {\n      id\n      status\n    }\n    action {\n      status\n    }\n  }\n}","variables":{"space":"%s","name":"%s","repository":"%s","branch":"%s","variables":[],"filename":"","source":"ui","catalogItemId":null},"operationName":"deployGitRepository"}`
+	// skyscrapr
+	// 39784259
+	// okteto-aws-lambda
+	// https://github.com/skyscrapr/okteto-aws-lambda.git
+	// main
+
+	result, err := c.query(fmt.Sprintf(mutation, namespace, name, repo, branch))
+	if err != nil {
+		return err
+	}
+	// Check if the secret was added successfully
+	if result["data"]["deployGitRepository"] == nil {
+		fmt.Println("Failed to add pipeline.")
+		fmt.Println("Response:", result)
+		return err
+	}
+	fmt.Println("Pipline scheduled successfully!")
+	return nil
+}
+
+func (c *Client) DestroyPipeline(name string, namespace string) error {
+	// Define the GraphQL mutation
+	mutation := `	{"query":"mutation destroyGitRepository($name: String!, $spaceId: String!, $destroyVolumes: Boolean, $forceDestroy: Boolean) {\n  destroyGitRepository(\n    name: $name\n    space: $spaceId\n    destroyVolumes: $destroyVolumes\n    forceDestroy: $forceDestroy\n  ) {\n    gitDeploy {\n      name\n    }\n    action {\n      status\n    }\n  }\n}","variables":{"name":"%s","spaceId":"%s","destroyVolumes":true,"forceDestroy":true},"operationName":"destroyGitRepository"}`
+	result, err := c.query(fmt.Sprintf(mutation, name, namespace))
+	if err != nil {
+		return err
+	}
+	// Check if the secret was added successfully
+	if result["data"]["destroyGitRepository"] == nil {
+		fmt.Println("Failed to destroy pipeline.")
+		fmt.Println("Response:", result)
+		return err
+	}
+	fmt.Println("Pipeline destroyed successfully!")
+	return nil
+}
+
 func (c *Client) query(query string) (map[string]map[string]interface{}, error) {
 	// Prepare the API request
 	req, err := http.NewRequest("POST", apiURL, bytes.NewBufferString(query))
@@ -125,6 +167,7 @@ func (c *Client) query(query string) (map[string]map[string]interface{}, error) 
 	// 	log.Fatalln(err)
 	// }
 	// fmt.Println(string(b))
+	// return nil, nil
 
 	var result map[string]map[string]interface{}
 	err = json.NewDecoder(resp.Body).Decode(&result)
