@@ -3,8 +3,6 @@ package okteto
 import (
 	"bytes"
 	"encoding/json"
-	// "io"
-	// "log"
 	"fmt"
 	"net/http"
 	"net/url"
