@@ -1,3 +1,3 @@
-provider "scaffolding" {
-  # example configuration here
+provider "okteto" {
+  namespace = "example"
 }
