@@ -32,13 +32,20 @@ func NewClient(apiToken string, namespace string) *Client {
 	return c
 }
 
-type Secret struct {
-	Name  string `json:"name"`
-	Value string `json:"value"`
+type OktetoResponse struct {
+	Data   map[string]interface{} `json:"data"`
+	Errors []OktetoError          `json:"errors"`
 }
 
-type SecretResponse struct {
-	ID string `json:"id"`
+type OktetoError struct {
+	Message   string           `json:"message"`
+	Locations []OktetoLocation `json:"locations"`
+	Path      []string         `json:"path"`
+}
+
+type OktetoLocation struct {
+	Line   int `json:"line"`
+	Column int `json:"column"`
 }
 
 func (c *Client) NewSecret(name string, value string) error {
@@ -49,7 +56,7 @@ func (c *Client) NewSecret(name string, value string) error {
 		return err
 	}
 	// Check if the secret was added successfully
-	if result["data"]["addSecret"] == nil {
+	if result.Data["addSecret"] == nil {
 		fmt.Println("Failed to add secret.")
 		fmt.Println("Response:", result)
 		return err
@@ -85,7 +92,7 @@ func (c *Client) DeleteSecret(name string) error {
 		return err
 	}
 	// Check if the secret was added successfully
-	if result["data"]["deleteSecret"] == nil {
+	if result.Data["deleteSecret"] == nil {
 		fmt.Println("Failed to delete secret.")
 		fmt.Println("Response:", result)
 		return err
@@ -107,8 +114,8 @@ func (c *Client) NewPipeline(namespace string, name string, repo string, branch 
 	if err != nil {
 		return err
 	}
-	// Check if the secret was added successfully
-	if result["data"]["deployGitRepository"] == nil {
+	// Check if the pipeline was scheduled successfully
+	if result.Data["deployGitRepository"] == nil {
 		fmt.Println("Failed to add pipeline.")
 		fmt.Println("Response:", result)
 		return err
@@ -117,24 +124,45 @@ func (c *Client) NewPipeline(namespace string, name string, repo string, branch 
 	return nil
 }
 
-func (c *Client) DestroyPipeline(name string, namespace string) error {
+func (c *Client) GetPipeline(namespace string, name string) (map[string]interface{}, error) {
+	query := `{"query":"query getSpace($spaceId: String!) {\n  space(id: $spaceId) {\n    id\n    status\n    quotas {\n      ...QuotasFields\n    }\n    members {\n      ...MemberFields\n    }\n    apps {\n      ...AppFields\n    }\n    gitDeploys {\n      ...GitDeployFields\n    }\n    devs {\n      ...DevFields\n    }\n    deployments {\n      ...DeploymentFields\n    }\n    pods {\n      ...PodFields\n    }\n    functions {\n      ...FunctionFields\n    }\n    statefulsets {\n      ...StatefulsetFields\n    }\n    jobs {\n      ...JobFields\n    }\n    cronjobs {\n      ...CronjobFields\n    }\n    volumes {\n      ...VolumeFields\n    }\n    externals {\n      ...ExternalResourceFields\n    }\n    scope\n    persistent\n  }\n}\n\nfragment QuotasFields on Quotas {\n  cpu {\n    ...QuotaFields\n  }\n  memory {\n    ...QuotaFields\n  }\n  pods {\n    ...QuotaFields\n  }\n  storage {\n    ...QuotaFields\n  }\n}\n\nfragment QuotaFields on Resource {\n  limits\n  limitsTotal\n  requests\n  requestsTotal\n  total\n  used\n}\n\nfragment MemberFields on Member {\n  id\n  avatar\n  email\n  externalID\n  name\n  owner\n}\n\nfragment AppFields on App {\n  id\n  name\n  version\n  chart\n  icon\n  description\n  repo\n  config\n  status\n  actionName\n  createdAt\n  updatedAt\n}\n\nfragment GitDeployFields on GitDeploy {\n  id\n  name\n  icon\n  yaml\n  repository\n  repoFullName\n  filename\n  branch\n  status\n  actionName\n  variables {\n    name\n    value\n  }\n  github {\n    installationId\n  }\n  gitCatalogItem {\n    id\n    name\n  }\n  createdAt\n  updatedAt\n}\n\nfragment DevFields on Dev {\n  id\n  name\n  deployedBy\n  yaml\n  error\n  status\n  replicas\n  numPods\n  createdAt\n  updatedAt\n  divert\n  cpu {\n    ...QuotaFields\n  }\n  memory {\n    ...QuotaFields\n  }\n  endpoints {\n    ...EndpointFields\n  }\n}\n\nfragment EndpointFields on Endpoint {\n  url\n  private\n  divert\n}\n\nfragment DeploymentFields on Deployment {\n  id\n  name\n  deployedBy\n  yaml\n  error\n  status\n  devmode\n  repository\n  path\n  replicas\n  numPods\n  createdAt\n  updatedAt\n  cpu {\n    ...QuotaFields\n  }\n  memory {\n    ...QuotaFields\n  }\n  endpoints {\n    ...EndpointFields\n  }\n}\n\nfragment PodFields on Pod {\n  id\n  name\n  yaml\n  createdAt\n  updatedAt\n  error\n  status\n  deployedBy\n  cpu {\n    ...QuotaFields\n  }\n  memory {\n    ...QuotaFields\n  }\n}\n\nfragment FunctionFields on Function {\n  id\n  name\n  deployedBy\n  yaml\n  error\n  status\n  devmode\n  replicas\n  numPods\n  createdAt\n  updatedAt\n  cpu {\n    ...QuotaFields\n  }\n  memory {\n    ...QuotaFields\n  }\n  endpoints {\n    ...EndpointFields\n  }\n}\n\nfragment StatefulsetFields on StatefulSet {\n  id\n  name\n  deployedBy\n  yaml\n  error\n  status\n  replicas\n  numPods\n  createdAt\n  updatedAt\n  devmode\n  cpu {\n    ...QuotaFields\n  }\n  memory {\n    ...QuotaFields\n  }\n  endpoints {\n    ...EndpointFields\n  }\n}\n\nfragment JobFields on Job {\n  id\n  name\n  deployedBy\n  yaml\n  error\n  status\n  replicas\n  numPods\n  createdAt\n  updatedAt\n  cpu {\n    ...QuotaFields\n  }\n  memory {\n    ...QuotaFields\n  }\n}\n\nfragment CronjobFields on CronJob {\n  id\n  name\n  deployedBy\n  yaml\n  error\n  status\n  createdAt\n  updatedAt\n}\n\nfragment VolumeFields on Volume {\n  id\n  name\n  createdByDevmode\n  deployedBy\n  yaml\n  status\n  createdAt\n  updatedAt\n  storage {\n    ...QuotaFields\n  }\n}\n\nfragment ExternalResourceFields on ExternalResource {\n  id\n  name\n  icon\n  createdAt\n  updatedAt\n  deployedBy\n  endpoints {\n    url\n  }\n  notes {\n    path\n    markdown\n  }\n}","variables":{"spaceId":"%s"},"operationName":"getSpace"}`
+	result, err := c.query(fmt.Sprintf(query, namespace))
+	if err != nil {
+		return nil, err
+	}
+
+	space, _ := result.Data["space"].(map[string]interface{})
+	gitDeploys, _ := space["gitDeploys"].([]interface{})
+
+	for _, pipeline := range gitDeploys {
+		if pipeline.(map[string]interface{})["name"].(string) == name {
+			fmt.Println("Pipeline exists!")
+			return pipeline.(map[string]interface{}), nil
+		}
+	}
+	fmt.Println("Pipeline doesn't exist!")
+	return nil, nil
+}
+
+func (c *Client) DestroyPipeline(name string, namespace string, force bool) error {
 	// Define the GraphQL mutation
-	mutation := `	{"query":"mutation destroyGitRepository($name: String!, $spaceId: String!, $destroyVolumes: Boolean, $forceDestroy: Boolean) {\n  destroyGitRepository(\n    name: $name\n    space: $spaceId\n    destroyVolumes: $destroyVolumes\n    forceDestroy: $forceDestroy\n  ) {\n    gitDeploy {\n      name\n    }\n    action {\n      status\n    }\n  }\n}","variables":{"name":"%s","spaceId":"%s","destroyVolumes":true,"forceDestroy":true},"operationName":"destroyGitRepository"}`
-	result, err := c.query(fmt.Sprintf(mutation, name, namespace))
+	mutation := `	{"query":"mutation destroyGitRepository($name: String!, $spaceId: String!, $destroyVolumes: Boolean, $forceDestroy: Boolean) {\n  destroyGitRepository(\n    name: $name\n    space: $spaceId\n    destroyVolumes: $destroyVolumes\n    forceDestroy: $forceDestroy\n  ) {\n    gitDeploy {\n      name\n    }\n    action {\n      status\n    }\n  }\n}","variables":{"name":"%s","spaceId":"%s","destroyVolumes":true,"forceDestroy":%s},"operationName":"destroyGitRepository"}`
+	sforce := "false"
+	if force {
+		sforce = "true"
+	}
+	result, err := c.query(fmt.Sprintf(mutation, name, namespace, sforce))
 	if err != nil {
 		return err
 	}
-	// Check if the secret was added successfully
-	if result["data"]["destroyGitRepository"] == nil {
-		fmt.Println("Failed to destroy pipeline.")
-		fmt.Println("Response:", result)
-		return err
+	if result.Data["destroyGitRepository"] == nil && result.Errors[0].Message != "not-found" {
+		return fmt.Errorf("failed to destroy pipeline: %s", result.Errors[0].Message)
 	}
 	fmt.Println("Pipeline destroyed successfully!")
 	return nil
 }
 
-func (c *Client) query(query string) (map[string]map[string]interface{}, error) {
+func (c *Client) query(query string) (*OktetoResponse, error) {
 	// Prepare the API request
 	req, err := http.NewRequest("POST", apiURL, bytes.NewBufferString(query))
 	if err != nil {
@@ -159,19 +187,19 @@ func (c *Client) query(query string) (map[string]map[string]interface{}, error) 
 		return nil, err
 	}
 
-	// // Parse the API response
+	var result OktetoResponse
+
 	// b, err := io.ReadAll(resp.Body)
 	// if err != nil {
 	// 	log.Fatalln(err)
 	// }
 	// fmt.Println(string(b))
-	// return nil, nil
+	// err = json.Unmarshal(b, &result)
 
-	var result map[string]map[string]interface{}
 	err = json.NewDecoder(resp.Body).Decode(&result)
 	if err != nil {
 		fmt.Println("Error parsing response:", err)
 		return nil, err
 	}
-	return result, nil
+	return &result, nil
 }

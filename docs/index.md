@@ -27,4 +27,4 @@ provider "okteto" {
 
 ### Optional
 
-- `api_token` (String) Okteto API Token
+- `api_token` (String) Okteto API Token - Can also be configured by setting environment variable with name 'OKTETO_API_TOKEB'

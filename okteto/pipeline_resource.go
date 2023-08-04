@@ -6,7 +6,9 @@ package okteto
 import (
 	"context"
 	"fmt"
+	"time"
 
+	"github.com/hashicorp/terraform-plugin-framework-timeouts/resource/timeouts"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -14,6 +16,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/retry"
 )
 
 // Ensure provider defined types fully satisfy framework interfaces.
@@ -31,10 +34,12 @@ type PipelineResource struct {
 
 // PipelineResourceModel describes the resource data model.
 type PipelineResourceModel struct {
-	Branch  types.String `tfsdk:"branch"`
-	RepoURL types.String `tfsdk:"repo_url"`
-	Name    types.String `tfsdk:"name"`
-	Id      types.String `tfsdk:"id"`
+	Status   types.String   `tfsdk:"status"`
+	Branch   types.String   `tfsdk:"branch"`
+	RepoURL  types.String   `tfsdk:"repo_url"`
+	Name     types.String   `tfsdk:"name"`
+	Id       types.String   `tfsdk:"id"`
+	Timeouts timeouts.Value `tfsdk:"timeouts"`
 }
 
 func (r *PipelineResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -47,10 +52,13 @@ func (r *PipelineResource) Schema(ctx context.Context, req resource.SchemaReques
 		MarkdownDescription: "Pipeline resource",
 
 		Attributes: map[string]schema.Attribute{
+			"status": schema.StringAttribute{
+				MarkdownDescription: "Status",
+				Computed:            true,
+			},
 			"branch": schema.StringAttribute{
 				MarkdownDescription: "Branch",
 				Required:            true,
-				// Sensitive: true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
@@ -58,7 +66,6 @@ func (r *PipelineResource) Schema(ctx context.Context, req resource.SchemaReques
 			"repo_url": schema.StringAttribute{
 				MarkdownDescription: "RepoURL",
 				Required:            true,
-				// Sensitive: true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
@@ -77,6 +84,12 @@ func (r *PipelineResource) Schema(ctx context.Context, req resource.SchemaReques
 					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
+		},
+		Blocks: map[string]schema.Block{
+			"timeouts": timeouts.Block(ctx, timeouts.Opts{
+				Create: true,
+				Delete: true,
+			}),
 		},
 	}
 }
@@ -111,16 +124,52 @@ func (r *PipelineResource) Create(ctx context.Context, req resource.CreateReques
 		return
 	}
 
+	createTimeout, diags := data.Timeouts.Create(ctx, 20*time.Minute)
+
+	resp.Diagnostics.Append(diags...)
+
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, createTimeout)
+	defer cancel()
+
 	err := r.client.NewPipeline(r.client.Namespace, data.Name.ValueString(), data.RepoURL.ValueString(), data.Branch.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create pipeline, got error: %s", err))
 		return
 	}
 	data.Id = data.Name
+	data.Status = types.StringValue("Unknown")
 	tflog.Trace(ctx, "created pipeline")
 
 	// Save data into Terraform state
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
+
+	err = retry.RetryContext(ctx, createTimeout, func() *retry.RetryError {
+		pipeline, err := r.client.GetPipeline(r.client.Namespace, data.Name.ValueString())
+		if err != nil {
+			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to get pipeline, got error: %s", err))
+			return retry.NonRetryableError(err)
+		}
+		status, _ := pipeline["status"].(string)
+		data.Status = types.StringValue(status)
+		tflog.Info(ctx, fmt.Sprintf("waiting for pipeline - status: %s", status))
+		switch status {
+		case "error", "":
+			return retry.NonRetryableError(fmt.Errorf("pipeline failed. %s", status))
+		case "deployed":
+			return nil
+		default:
+			return retry.RetryableError(fmt.Errorf("expected instance to be created but was in state %s", status))
+		}
+	})
+
+	if err != nil {
+		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to wait for pipeline to complete, got error: %s", err))
+		return
+	}
 }
 
 func (r *PipelineResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
@@ -132,11 +181,13 @@ func (r *PipelineResource) Read(ctx context.Context, req resource.ReadRequest, r
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	// err := r.client.GetSecret(data.Name.ValueString())
-	// if err != nil {
-	// 	resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read secret, got error: %s", err))
-	// 	return
-	// }
+	pipeline, err := r.client.GetPipeline(r.client.Namespace, data.Name.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to get pipeline, got error: %s", err))
+		return
+	}
+	v, _ := pipeline["status"].(string)
+	data.Status = types.StringValue(v)
 	// tflog.Trace(ctx, "read secret")
 	// Save updated data into Terraform state
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
@@ -156,11 +207,72 @@ func (r *PipelineResource) Delete(ctx context.Context, req resource.DeleteReques
 		return
 	}
 
-	err := r.client.DestroyPipeline(data.Name.ValueString(), r.client.Namespace)
+	deleteTimeout, diags := data.Timeouts.Delete(ctx, 20*time.Minute)
+
+	resp.Diagnostics.Append(diags...)
+
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, deleteTimeout)
+	defer cancel()
+
+	tflog.Info(ctx, "Destroying pipeline...")
+	err := r.client.DestroyPipeline(data.Name.ValueString(), r.client.Namespace, false)
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to destroy pipeline, got error: %s", err))
 		return
 	}
+	tflog.Info(ctx, "Waiting for pipeline to be destroyed...")
+	err = retry.RetryContext(ctx, deleteTimeout, func() *retry.RetryError {
+		pipeline, err := r.client.GetPipeline(r.client.Namespace, data.Name.ValueString())
+		if err != nil {
+			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to get pipeline, got error: %s", err))
+			return retry.NonRetryableError(err)
+		}
+		status, _ := pipeline["status"].(string)
+		data.Status = types.StringValue(status)
+		tflog.Info(ctx, fmt.Sprintf("waiting for pipeline - status: %s", status))
+		switch status {
+		case "destroy-error", "":
+			return retry.NonRetryableError(fmt.Errorf("pipeline destroy failed. %s", status))
+		case "destroyed":
+			return nil
+		default:
+			return retry.RetryableError(fmt.Errorf("expected instance to be destroyed but was in state %s", status))
+		}
+	})
+	if err != nil {
+		tflog.Info(ctx, "Destroying pipeline with prejudice...")
+		err = r.client.DestroyPipeline(data.Name.ValueString(), r.client.Namespace, true)
+		if err != nil {
+			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to force destroy pipeline, got error: %s", err))
+			return
+		}
+	}
+	// err = retry.RetryContext(ctx, deleteTimeout, func() *retry.RetryError {
+	// 	pipeline, err := r.client.GetPipeline(r.client.Namespace, data.Name.ValueString())
+	// 	if err != nil {
+	// 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to get pipeline, got error: %s", err))
+	// 		return retry.NonRetryableError(err)
+	// 	}
+	// 	status, _ := pipeline["status"].(string)
+	// 	data.Status = types.StringValue(status)
+	// 	tflog.Info(ctx, fmt.Sprintf("waiting for pipeline - status: %s", status))
+	// 	switch status {
+	// 	case "error", "":
+	// 		return retry.NonRetryableError(fmt.Errorf("pipeline destroy failed. %s", status))
+	// 	case "completed":
+	// 		return nil
+	// 	default:
+	// 		return retry.RetryableError(fmt.Errorf("expected instance to be destroyed but was in state %s", status))
+	// 	}
+	// })
+	// if err != nil {
+	// 	resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to destroy pipeline, got error: %s", err))
+	// 	return
+	// }
 	tflog.Trace(ctx, "destroyed pipeline")
 }
 
