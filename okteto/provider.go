@@ -41,7 +41,7 @@ func (p *ScaffoldingProvider) Schema(ctx context.Context, req provider.SchemaReq
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
 			"api_token": schema.StringAttribute{
-				MarkdownDescription: "Okteto API Token",
+				MarkdownDescription: "Okteto API Token - Can also be configured by setting environment variable with name 'OKTETO_API_TOKEB'",
 				Optional:            true,
 			},
 			"namespace": schema.StringAttribute{
