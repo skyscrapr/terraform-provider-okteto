@@ -135,9 +135,14 @@ func (c *Client) GetPipeline(namespace string, name string) (map[string]interfac
 	gitDeploys, _ := space["gitDeploys"].([]interface{})
 
 	for _, pipeline := range gitDeploys {
-		if pipeline.(map[string]interface{})["name"].(string) == name {
+		pipelineName, ok := pipeline.(map[string]interface{})["name"].(string)
+		if ok && pipelineName == name {
 			fmt.Println("Pipeline exists!")
-			return pipeline.(map[string]interface{}), nil
+			pipelineData, ok := pipeline.(map[string]interface{})
+			if ok {
+				return pipelineData, nil
+			}
+			return nil, fmt.Errorf("could not get pipeline data: %s", pipeline)
 		}
 	}
 	fmt.Println("Pipeline doesn't exist!")
