@@ -188,8 +188,7 @@ func (c *Client) query(query string) (*OktetoResponse, error) {
 
 	// Check the API response
 	if resp.StatusCode != http.StatusOK {
-		fmt.Printf("Failed to execute query: %s\n", resp.Status)
-		return nil, err
+		return nil, fmt.Errorf("failed to execute query: %s", resp.Status)
 	}
 
 	var result OktetoResponse
