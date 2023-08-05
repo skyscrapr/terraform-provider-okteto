@@ -10,7 +10,6 @@ import (
 )
 
 func TestAccPipelineResource(t *testing.T) {
-	t.Skip()
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
@@ -21,7 +20,7 @@ func TestAccPipelineResource(t *testing.T) {
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttrSet("okteto_pipeline.test", "id"),
 					resource.TestCheckResourceAttr("okteto_pipeline.test", "name", "okteto_aws_lambda"),
-					resource.TestCheckResourceAttr("okteto_pipeline.test", "repo_url", "https://github.com/skyscrapr/okteto-aws-lambda.git"),
+					resource.TestCheckResourceAttr("okteto_pipeline.test", "repo_url", "https://github.com/skyscrapr/okteto-pipeline-test.git"),
 					resource.TestCheckResourceAttr("okteto_pipeline.test", "branch", "main"),
 				),
 			},
@@ -47,7 +46,7 @@ provider okteto {
 
 resource "okteto_pipeline" "test" {
   name = "okteto_aws_lambda"
-  repo_url = "https://github.com/skyscrapr/okteto-aws-lambda.git"
+  repo_url = "https://github.com/skyscrapr/okteto-pipeline-test.git"
   branch = "main"
 }
 `
