@@ -152,7 +152,14 @@ func (r *PipelineResource) Create(ctx context.Context, req resource.CreateReques
 		if err == nil {
 			switch status {
 			case "error", "":
-				return retry.NonRetryableError(fmt.Errorf("pipeline failed. %s", status))
+				// HACK: seem to occasionally get error status - one more retry.
+				status, err = getPipelineStatus(r.client, data.Name.ValueString())
+				if err == nil && status == "error" {
+					return retry.NonRetryableError(fmt.Errorf("pipeline failed. %s", status))
+				} else {
+					fmt.Println("what!!1")
+					return nil
+				}
 			case "deployed":
 				return nil
 			default:
@@ -225,7 +232,7 @@ func (r *PipelineResource) Delete(ctx context.Context, req resource.DeleteReques
 		status, err := getPipelineStatus(r.client, data.Name.ValueString())
 		if err == nil {
 			switch status {
-			case "destroy-error", "error", "":
+			case "destroy-error", "":
 				return retry.NonRetryableError(fmt.Errorf("pipeline destroy failed. %s", status))
 			case "destroyed":
 				return nil
