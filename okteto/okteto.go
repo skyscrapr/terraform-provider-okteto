@@ -158,7 +158,7 @@ func (c *Client) DestroyPipeline(name string, namespace string, force bool) erro
 	if result.Data["destroyGitRepository"] == nil && result.Errors[0].Message != "not-found" {
 		return fmt.Errorf("failed to destroy pipeline: %s", result.Errors[0].Message)
 	}
-	fmt.Println("Pipeline destroyed successfully!")
+	fmt.Println("Pipeline destroy initiated successfully!")
 	return nil
 }
 

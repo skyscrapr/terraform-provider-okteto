@@ -256,5 +256,6 @@ func getPipelineStatus(client *Client, pipelineName string) (string, error) {
 	if err == nil && pipeline != nil {
 		status, _ = pipeline["status"].(string)
 	}
+	fmt.Printf("getPipelineStatus: status: %s, error %s \n", status, err)
 	return status, err
 }
