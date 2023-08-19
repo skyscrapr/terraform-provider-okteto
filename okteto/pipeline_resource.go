@@ -251,28 +251,6 @@ func (r *PipelineResource) Delete(ctx context.Context, req resource.DeleteReques
 			return
 		}
 	}
-	// err = retry.RetryContext(ctx, deleteTimeout, func() *retry.RetryError {
-	// 	pipeline, err := r.client.GetPipeline(r.client.Namespace, data.Name.ValueString())
-	// 	if err != nil {
-	// 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to get pipeline, got error: %s", err))
-	// 		return retry.NonRetryableError(err)
-	// 	}
-	// 	status, _ := pipeline["status"].(string)
-	// 	data.Status = types.StringValue(status)
-	// 	tflog.Info(ctx, fmt.Sprintf("waiting for pipeline - status: %s", status))
-	// 	switch status {
-	// 	case "error", "":
-	// 		return retry.NonRetryableError(fmt.Errorf("pipeline destroy failed. %s", status))
-	// 	case "completed":
-	// 		return nil
-	// 	default:
-	// 		return retry.RetryableError(fmt.Errorf("expected instance to be destroyed but was in state %s", status))
-	// 	}
-	// })
-	// if err != nil {
-	// 	resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to destroy pipeline, got error: %s", err))
-	// 	return
-	// }
 	tflog.Trace(ctx, "destroyed pipeline")
 }
 
