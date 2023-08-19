@@ -225,7 +225,7 @@ func (r *PipelineResource) Delete(ctx context.Context, req resource.DeleteReques
 		status, err := getPipelineStatus(r.client, data.Name.ValueString())
 		if err == nil {
 			switch status {
-			case "destroy-error", "":
+			case "destroy-error", "error", "":
 				return retry.NonRetryableError(fmt.Errorf("pipeline destroy failed. %s", status))
 			case "destroyed":
 				return nil
