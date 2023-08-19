@@ -104,11 +104,6 @@ func (c *Client) DeleteSecret(name string) error {
 func (c *Client) NewPipeline(namespace string, name string, repo string, branch string) error {
 	// Define the GraphQL mutation
 	mutation := `{"query":"mutation deployGitRepository($name: String!, $space: String!, $source: String!, $branch: String, $repository: String!, $installationId: String, $variables: [InputVariable], $filename: String, $catalogItemId: String) {\n  deployGitRepository(\n    name: $name\n    space: $space\n    source: $source\n    branch: $branch\n    repository: $repository\n    installationId: $installationId\n    variables: $variables\n    filename: $filename\n    catalogItemId: $catalogItemId\n  ) {\n    gitDeploy {\n      id\n      status\n    }\n    action {\n      status\n    }\n  }\n}","variables":{"space":"%s","name":"%s","repository":"%s","branch":"%s","variables":[],"filename":"","source":"ui","catalogItemId":null},"operationName":"deployGitRepository"}`
-	// skyscrapr
-	// 39784259
-	// okteto-aws-lambda
-	// https://github.com/skyscrapr/okteto-aws-lambda.git
-	// main
 
 	result, err := c.query(fmt.Sprintf(mutation, namespace, name, repo, branch))
 	if err != nil {

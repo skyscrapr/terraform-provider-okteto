@@ -148,22 +148,18 @@ func (r *PipelineResource) Create(ctx context.Context, req resource.CreateReques
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 
 	err = retry.RetryContext(ctx, createTimeout, func() *retry.RetryError {
-		pipeline, err := r.client.GetPipeline(r.client.Namespace, data.Name.ValueString())
-		if err != nil {
-			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to get pipeline, got error: %s", err))
-			return retry.NonRetryableError(err)
+		status, err := getPipelineStatus(r.client, data.Name.ValueString())
+		if err == nil {
+			switch status {
+			case "error", "":
+				return retry.NonRetryableError(fmt.Errorf("pipeline failed. %s", status))
+			case "deployed":
+				return nil
+			default:
+				return retry.RetryableError(fmt.Errorf("expected instance to be created but was in state %s", status))
+			}
 		}
-		status, _ := pipeline["status"].(string)
-		data.Status = types.StringValue(status)
-		tflog.Info(ctx, fmt.Sprintf("waiting for pipeline - status: %s", status))
-		switch status {
-		case "error", "":
-			return retry.NonRetryableError(fmt.Errorf("pipeline failed. %s", status))
-		case "deployed":
-			return nil
-		default:
-			return retry.RetryableError(fmt.Errorf("expected instance to be created but was in state %s", status))
-		}
+		return retry.NonRetryableError(fmt.Errorf("couldn't get pipeline by name. %s", err))
 	})
 
 	if err != nil {
@@ -226,22 +222,18 @@ func (r *PipelineResource) Delete(ctx context.Context, req resource.DeleteReques
 	}
 	tflog.Info(ctx, "Waiting for pipeline to be destroyed...")
 	err = retry.RetryContext(ctx, deleteTimeout, func() *retry.RetryError {
-		pipeline, err := r.client.GetPipeline(r.client.Namespace, data.Name.ValueString())
-		if err != nil {
-			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to get pipeline, got error: %s", err))
-			return retry.NonRetryableError(err)
+		status, err := getPipelineStatus(r.client, data.Name.ValueString())
+		if err == nil {
+			switch status {
+			case "destroy-error", "":
+				return retry.NonRetryableError(fmt.Errorf("pipeline destroy failed. %s", status))
+			case "destroyed":
+				return nil
+			default:
+				return retry.RetryableError(fmt.Errorf("expected instance to be destroyed but was in state %s", status))
+			}
 		}
-		status, _ := pipeline["status"].(string)
-		data.Status = types.StringValue(status)
-		tflog.Info(ctx, fmt.Sprintf("waiting for pipeline - status: %s", status))
-		switch status {
-		case "destroy-error", "":
-			return retry.NonRetryableError(fmt.Errorf("pipeline destroy failed. %s", status))
-		case "destroyed":
-			return nil
-		default:
-			return retry.RetryableError(fmt.Errorf("expected instance to be destroyed but was in state %s", status))
-		}
+		return retry.NonRetryableError(fmt.Errorf("couldn't get pipeline by name. %s", err))
 	})
 	if err != nil {
 		tflog.Info(ctx, "Destroying pipeline with prejudice...")
@@ -256,4 +248,13 @@ func (r *PipelineResource) Delete(ctx context.Context, req resource.DeleteReques
 
 func (r *PipelineResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+}
+
+func getPipelineStatus(client *Client, pipelineName string) (string, error) {
+	pipeline, err := client.GetPipeline(client.Namespace, pipelineName)
+	status := ""
+	if err == nil && pipeline != nil {
+		status, _ = pipeline["status"].(string)
+	}
+	return status, err
 }
