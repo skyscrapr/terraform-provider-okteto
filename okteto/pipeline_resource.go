@@ -257,6 +257,11 @@ func (r *PipelineResource) Delete(ctx context.Context, req resource.DeleteReques
 			}
 			return retry.NonRetryableError(fmt.Errorf("couldn't get pipeline by name. %s", err))
 		})
+		if err != nil {
+			tflog.Info(ctx, "Destroying pipeline with prejudice failed...")
+			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to force destroy pipeline, got error: %s", err))
+			return
+		}
 	}
 	tflog.Trace(ctx, "destroyed pipeline")
 }
