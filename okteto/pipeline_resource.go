@@ -152,14 +152,7 @@ func (r *PipelineResource) Create(ctx context.Context, req resource.CreateReques
 		if err == nil {
 			switch status {
 			case "error", "":
-				// HACK: seem to occasionally get error status - one more retry.
-				status, err = getPipelineStatus(r.client, data.Name.ValueString())
-				if err == nil && status == "error" {
-					return retry.NonRetryableError(fmt.Errorf("pipeline failed. %s", status))
-				} else {
-					fmt.Println("what!!1")
-					return nil
-				}
+				return retry.NonRetryableError(fmt.Errorf("pipeline failed. %s", status))
 			case "deployed":
 				return nil
 			default:
@@ -249,6 +242,21 @@ func (r *PipelineResource) Delete(ctx context.Context, req resource.DeleteReques
 			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to force destroy pipeline, got error: %s", err))
 			return
 		}
+		tflog.Info(ctx, "Waiting for pipeline to be destroyed...")
+		err = retry.RetryContext(ctx, deleteTimeout, func() *retry.RetryError {
+			status, err := getPipelineStatus(r.client, data.Name.ValueString())
+			if err == nil {
+				switch status {
+				case "destroy-error", "":
+					return retry.NonRetryableError(fmt.Errorf("pipeline destroy failed. %s", status))
+				case "destroyed":
+					return nil
+				default:
+					return retry.RetryableError(fmt.Errorf("expected instance to be destroyed but was in state %s", status))
+				}
+			}
+			return retry.NonRetryableError(fmt.Errorf("couldn't get pipeline by name. %s", err))
+		})
 	}
 	tflog.Trace(ctx, "destroyed pipeline")
 }
