@@ -14,6 +14,11 @@ func TestAccPipelineResource(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		ExternalProviders: map[string]resource.ExternalProvider{
+			"aws": {
+				Source: "hashicorp/aws",
+			},
+		},
 		Steps: []resource.TestStep{
 			// Create and Read testing
 			{
@@ -21,7 +26,7 @@ func TestAccPipelineResource(t *testing.T) {
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttrSet("okteto_pipeline.test", "id"),
 					resource.TestCheckResourceAttr("okteto_pipeline.test", "name", "okteto_aws_lambda"),
-					resource.TestCheckResourceAttr("okteto_pipeline.test", "repo_url", "https://github.com/skyscrapr/okteto-pipeline-test.git"),
+					resource.TestCheckResourceAttr("okteto_pipeline.test", "repo_url", "https://github.com/skyscrapr/oktetodo-terraform-s3.git"),
 					resource.TestCheckResourceAttr("okteto_pipeline.test", "branch", "main"),
 				),
 			},
@@ -70,14 +75,77 @@ func TestAccPipelineResourceFailedDestroy(t *testing.T) {
 
 func testAccPipelineResourceConfig(branch string) string {
 	return fmt.Sprintf(`
+provider "aws" {
+	region = "us-east-1"
+	}
+
 provider okteto {
 	namespace = "skyscrapr"
 }
 
 resource "okteto_pipeline" "test" {
   name = "okteto_aws_lambda"
-  repo_url = "https://github.com/skyscrapr/okteto-pipeline-test.git"
+  repo_url = "https://github.com/skyscrapr/oktetodo-terraform-s3.git"
   branch = "%s"
+  depends_on = [
+	okteto_secret.aws_access_key_id,
+	okteto_secret.aws_secret_access_key,
+	okteto_secret.aws_region
+  ]
 }
+
+resource okteto_secret "aws_access_key_id" {
+    name = "AWS_ACCESS_KEY_ID"
+    value = aws_iam_access_key.okteto_deploy.id
+}
+
+resource okteto_secret "aws_secret_access_key" {
+    name = "AWS_SECRET_ACCESS_KEY"
+    value = aws_iam_access_key.okteto_deploy.secret
+    depends_on = [
+        okteto_secret.aws_access_key_id
+    ]
+}
+
+resource okteto_secret "aws_region" {
+    name = "AWS_REGION"
+    value = "us-east-1"
+    depends_on = [
+        okteto_secret.aws_secret_access_key
+    ]
+}
+
+resource "aws_iam_user" "okteto_deploy" {
+	name = "okteto_deploy"
+  }
+  
+  resource "aws_iam_user_policy_attachment" "cloudformation_fullaccess" {
+	user       = aws_iam_user.okteto_deploy.name
+	policy_arn = "arn:aws:iam::aws:policy/AWSCloudFormationFullAccess"
+  }
+  
+  resource "aws_iam_user_policy_attachment" "iam_full_access" {
+	user       = aws_iam_user.okteto_deploy.name
+	policy_arn = "arn:aws:iam::aws:policy/IAMFullAccess"
+  }
+  
+  resource "aws_iam_user_policy_attachment" "lambda_full_access" {
+	user       = aws_iam_user.okteto_deploy.name
+	policy_arn = "arn:aws:iam::aws:policy/AWSLambda_FullAccess"
+  }
+  
+  resource "aws_iam_user_policy_attachment" "api_gateway_admin" {
+	user       = aws_iam_user.okteto_deploy.name
+	policy_arn = "arn:aws:iam::aws:policy/AmazonAPIGatewayAdministrator"
+  }
+  
+  resource "aws_iam_user_policy_attachment" "s3_full_access" {
+	user       = aws_iam_user.okteto_deploy.name
+	policy_arn = "arn:aws:iam::aws:policy/AmazonS3FullAccess"
+  }
+  
+  resource "aws_iam_access_key" "okteto_deploy" {
+	user = aws_iam_user.okteto_deploy.name
+  }
 `, branch)
 }

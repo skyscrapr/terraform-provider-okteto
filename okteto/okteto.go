@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 )
 
@@ -126,19 +127,52 @@ func (c *Client) GetPipeline(namespace string, name string) (map[string]interfac
 		return nil, err
 	}
 
-	space, _ := result.Data["space"].(map[string]interface{})
-	gitDeploys, _ := space["gitDeploys"].([]interface{})
+	space, ok := result.Data["space"].(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("could not get space data")
+	}
+
+	gitDeploys, ok := space["gitDeploys"].([]interface{})
+	if !ok {
+		return nil, fmt.Errorf("could not get gitDeploys data")
+	}
+
+	deployments, ok := space["deployments"].([]interface{})
+	if !ok {
+		return nil, fmt.Errorf("could not get deployments data")
+	}
 
 	for _, pipeline := range gitDeploys {
-		pipelineName, ok := pipeline.(map[string]interface{})["name"].(string)
-		if ok && pipelineName == name {
-			fmt.Println("Pipeline exists!")
-			pipelineData, ok := pipeline.(map[string]interface{})
-			if ok {
-				return pipelineData, nil
-			}
-			return nil, fmt.Errorf("could not get pipeline data: %s", pipeline)
+		pipelineData, ok := pipeline.(map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf("could not get pipeline data")
 		}
+
+		pipelineName, ok := pipelineData["name"].(string)
+		if !ok || pipelineName != name {
+			continue
+		}
+
+		fmt.Println("Pipeline exists!")
+
+		pipelineData["deployments"] = []map[string]interface{}{}
+		for _, deployment := range deployments {
+			deploymentData, ok := deployment.(map[string]interface{})
+			if !ok {
+				return nil, fmt.Errorf("could not get deployment data")
+			}
+
+			deployedBy, ok := deploymentData["deployedBy"].(string)
+			if !ok {
+				return nil, fmt.Errorf("could not get 'deployedBy' field from deployment data")
+			}
+
+			if deployedBy == strings.Replace(pipelineName, "_", "-", -1) {
+				fmt.Printf("Deployment found... \n")
+				pipelineData["deployments"] = append(pipelineData["deployments"].([]map[string]interface{}), deploymentData)
+			}
+		}
+		return pipelineData, nil
 	}
 	fmt.Println("Pipeline doesn't exist!")
 	return nil, nil
