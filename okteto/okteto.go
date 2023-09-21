@@ -156,6 +156,10 @@ func (c *Client) GetPipeline(namespace string, name string) (map[string]interfac
 		fmt.Println("Pipeline exists!")
 
 		pipelineData["deployments"] = []map[string]interface{}{}
+		slice, ok := pipelineData["deployments"].([]map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf("could not get deployments slice")
+		}
 		for _, deployment := range deployments {
 			deploymentData, ok := deployment.(map[string]interface{})
 			if !ok {
@@ -169,7 +173,7 @@ func (c *Client) GetPipeline(namespace string, name string) (map[string]interfac
 
 			if deployedBy == strings.Replace(pipelineName, "_", "-", -1) {
 				fmt.Printf("Deployment found... \n")
-				pipelineData["deployments"] = append(pipelineData["deployments"].([]map[string]interface{}), deploymentData)
+				pipelineData["deployments"] = append(slice, deploymentData)
 			}
 		}
 		return pipelineData, nil
