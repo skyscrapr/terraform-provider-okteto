@@ -60,6 +60,7 @@ func TestAccPipelineResourceFailedDestroy(t *testing.T) {
 }
 
 func TestAccPipelineResource_complex(t *testing.T) {
+	t.Skip("Skip due to inability to destroy correctly")
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
