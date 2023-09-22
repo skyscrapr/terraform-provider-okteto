@@ -153,13 +153,9 @@ func (c *Client) GetPipeline(namespace string, name string) (map[string]interfac
 			continue
 		}
 
-		fmt.Println("Pipeline exists!")
+		// Initialize an empty slice to store deployments for this pipeline
+		pipelineDeployments := []map[string]interface{}{}
 
-		pipelineData["deployments"] = []map[string]interface{}{}
-		slice, ok := pipelineData["deployments"].([]map[string]interface{})
-		if !ok {
-			return nil, fmt.Errorf("could not get deployments slice")
-		}
 		for _, deployment := range deployments {
 			deploymentData, ok := deployment.(map[string]interface{})
 			if !ok {
@@ -172,10 +168,13 @@ func (c *Client) GetPipeline(namespace string, name string) (map[string]interfac
 			}
 
 			if deployedBy == strings.Replace(pipelineName, "_", "-", -1) {
-				fmt.Printf("Deployment found... \n")
-				pipelineData["deployments"] = append(slice, deploymentData)
+				// Append the deployment data to the pipelineDeployments slice
+				pipelineDeployments = append(pipelineDeployments, deploymentData)
 			}
 		}
+
+		// Assign the pipelineDeployments slice to pipelineData["deployments"]
+		pipelineData["deployments"] = pipelineDeployments
 		return pipelineData, nil
 	}
 	fmt.Println("Pipeline doesn't exist!")

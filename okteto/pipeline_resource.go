@@ -261,6 +261,17 @@ func waitDeploymentStates(ctx context.Context, timeout time.Duration, client *Cl
 				return retry.NonRetryableError(fmt.Errorf("could not get deployments data"))
 			}
 			for _, deployment := range deployments {
+				name, ok := deployment["name"].(string)
+				if !ok {
+					return retry.NonRetryableError(fmt.Errorf("could not get deployment name"))
+				}
+				status, ok := deployment["status"].(string)
+				if !ok {
+					return retry.NonRetryableError(fmt.Errorf("could not get deployment state"))
+				}
+				fmt.Printf("Pipeline %s: Deployment %s: status: %s\n", pipelineName, name, status)
+			}
+			for _, deployment := range deployments {
 				status, ok := deployment["status"].(string)
 				if !ok {
 					return retry.NonRetryableError(fmt.Errorf("could not get deployment state"))
@@ -284,17 +295,7 @@ func getPipelineState(client *Client, pipelineName string) (string, error) {
 	status := ""
 	if err == nil && pipeline != nil {
 		status, _ = pipeline["status"].(string)
+		fmt.Printf("Pipeline %s status: %s\n", pipelineName, status)
 	}
-	fmt.Printf("getPipelineStatus: status: %s, error %s \n", status, err)
 	return status, err
 }
-
-// func getPipelineDeploymentStates(client *Client, pipelineName string) (string, error) {
-// 	pipeline, err := client.GetPipeline(client.Namespace, pipelineName)
-// 	status := ""
-// 	if err == nil && pipeline != nil {
-// 		status, _ = pipeline["status"].(string)
-// 	}
-// 	fmt.Printf("getPipelineStatus: status: %s, error %s \n", status, err)
-// 	return status, err
-// }

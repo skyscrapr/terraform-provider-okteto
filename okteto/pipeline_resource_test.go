@@ -10,23 +10,18 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 )
 
-func TestAccPipelineResource(t *testing.T) {
+func TestAccPipelineResource_basic(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
-		ExternalProviders: map[string]resource.ExternalProvider{
-			"aws": {
-				Source: "hashicorp/aws",
-			},
-		},
 		Steps: []resource.TestStep{
 			// Create and Read testing
 			{
-				Config: testAccPipelineResourceConfig("main"),
+				Config: testAccPipelineResourceConfig_basic("main"),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttrSet("okteto_pipeline.test", "id"),
 					resource.TestCheckResourceAttr("okteto_pipeline.test", "name", "okteto_aws_lambda"),
-					resource.TestCheckResourceAttr("okteto_pipeline.test", "repo_url", "https://github.com/skyscrapr/oktetodo-terraform-s3.git"),
+					resource.TestCheckResourceAttr("okteto_pipeline.test", "repo_url", "https://github.com/skyscrapr/okteto-pipeline-test.git"),
 					resource.TestCheckResourceAttr("okteto_pipeline.test", "branch", "main"),
 				),
 			},
@@ -51,7 +46,7 @@ func TestAccPipelineResourceFailedDestroy(t *testing.T) {
 		Steps: []resource.TestStep{
 			// Create and Read testing
 			{
-				Config: testAccPipelineResourceConfig("error"),
+				Config: testAccPipelineResourceConfig_basic("error"),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttrSet("okteto_pipeline.test", "id"),
 					resource.TestCheckResourceAttr("okteto_pipeline.test", "name", "okteto_aws_lambda"),
@@ -59,21 +54,51 @@ func TestAccPipelineResourceFailedDestroy(t *testing.T) {
 					resource.TestCheckResourceAttr("okteto_pipeline.test", "branch", "error"),
 				),
 			},
-			// // Update and Read testing
-			// {
-			// 	Config: testAccExampleResourceConfig("two"),
-			// 	Check: resource.ComposeAggregateTestCheckFunc(
-			// 		resource.TestCheckResourceAttrSet("okteto_secret.test", "id"),
-			// 		resource.TestCheckResourceAttr("okteto_secret.test", "name", "test_secret"),
-			// 		resource.TestCheckResourceAttr("okteto_secret.test", "value", "value_two"),
-			// 	),
-			// },
 			// Delete testing automatically occurs in TestCase
 		},
 	})
 }
 
-func testAccPipelineResourceConfig(branch string) string {
+func TestAccPipelineResource_complex(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		ExternalProviders: map[string]resource.ExternalProvider{
+			"aws": {
+				Source: "hashicorp/aws",
+			},
+		},
+		Steps: []resource.TestStep{
+			// Create and Read testing
+			{
+				Config: testAccPipelineResourceConfig_complex("main"),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttrSet("okteto_pipeline.test", "id"),
+					resource.TestCheckResourceAttr("okteto_pipeline.test", "name", "okteto_aws_lambda"),
+					resource.TestCheckResourceAttr("okteto_pipeline.test", "repo_url", "https://github.com/skyscrapr/oktetodo-terraform-s3.git"),
+					resource.TestCheckResourceAttr("okteto_pipeline.test", "branch", "main"),
+				),
+			},
+			// Delete testing automatically occurs in TestCase
+		},
+	})
+}
+
+func testAccPipelineResourceConfig_basic(branch string) string {
+	return fmt.Sprintf(`
+provider okteto {
+	namespace = "skyscrapr"
+}
+
+resource "okteto_pipeline" "test" {
+  name = "okteto_aws_lambda"
+  repo_url = "https://github.com/skyscrapr/okteto-pipeline-test.git"
+  branch = "%s"
+}
+`, branch)
+}
+
+func testAccPipelineResourceConfig_complex(branch string) string {
 	return fmt.Sprintf(`
 provider "aws" {
 	region = "us-east-1"
