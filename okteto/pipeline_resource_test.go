@@ -10,20 +10,18 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 )
 
-
-
 func TestAccPipelineResource_basic(t *testing.T) {
 	testExternalProviders := map[string]resource.ExternalProvider{
 		"aws": {
-			Source:            "hashicorp/aws",
+			Source: "hashicorp/aws",
 			// VersionConstraint: "~> 2.3",
 		},
 	}
-	
+
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
-		ExternalProviders: testExternalProviders,
+		ExternalProviders:        testExternalProviders,
 		Steps: []resource.TestStep{
 			// Create and Read testing
 			{

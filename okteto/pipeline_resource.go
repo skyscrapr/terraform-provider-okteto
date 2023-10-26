@@ -36,13 +36,13 @@ type PipelineResource struct {
 
 // PipelineResourceModel describes the resource data model.
 type pipelineResourceModel struct {
-	Status   types.String   `tfsdk:"status"`
-	Branch   types.String   `tfsdk:"branch"`
-	RepoURL  types.String   `tfsdk:"repo_url"`
-	Name     types.String   `tfsdk:"name"`
-	Id       types.String   `tfsdk:"id"`
-	Timeouts timeouts.Value `tfsdk:"timeouts"`
-	Deployments types.Set `tfsdk:"deployments"`
+	Status      types.String   `tfsdk:"status"`
+	Branch      types.String   `tfsdk:"branch"`
+	RepoURL     types.String   `tfsdk:"repo_url"`
+	Name        types.String   `tfsdk:"name"`
+	Id          types.String   `tfsdk:"id"`
+	Timeouts    timeouts.Value `tfsdk:"timeouts"`
+	Deployments types.Set      `tfsdk:"deployments"`
 }
 
 func (r *PipelineResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -174,7 +174,7 @@ func (r *PipelineResource) Create(ctx context.Context, req resource.CreateReques
 
 	resp.Diagnostics.Append(data.refresh(ctx, r.client)...)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
-	
+
 }
 
 func (r *PipelineResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
@@ -325,20 +325,21 @@ func flattenDeployments(ctx context.Context, set interface{}) (types.Set, diag.D
 	}
 
 	attrs := make([]attr.Value, 0, len(deployments))
-	for _, d := range(deployments) {
+	for _, d := range deployments {
 		attr := map[string]attr.Value{}
 		endpoints, _ := d["endpoints"].([]interface{})
 		newEndpoints := make([]string, len(endpoints))
-		for i, e := range(endpoints) {
+		for i, e := range endpoints {
 			newEndpoint, _ := e.(map[string]interface{})
-			newEndpoints[i] = newEndpoint["url"].(string)
+			url, _ := newEndpoint["url"].(string)
+			newEndpoints[i] = url
 		}
 		//model.Endpoints = types.SetValueMust(types.StringType, newEndpoints)
 		attr["endpoints"], diags = types.SetValueFrom(ctx, types.StringType, newEndpoints)
 		val := types.ObjectValueMust(attributeTypes, attr)
 		attrs = append(attrs, val)
 	}
-	
+
 	return types.SetValueMust(elemType, attrs), diags
 }
 
