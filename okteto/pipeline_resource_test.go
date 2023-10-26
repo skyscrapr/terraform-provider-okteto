@@ -10,18 +10,28 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 )
 
+
+
 func TestAccPipelineResource_basic(t *testing.T) {
+	testExternalProviders := map[string]resource.ExternalProvider{
+		"aws": {
+			Source:            "hashicorp/aws",
+			// VersionConstraint: "~> 2.3",
+		},
+	}
+	
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		ExternalProviders: testExternalProviders,
 		Steps: []resource.TestStep{
 			// Create and Read testing
 			{
 				Config: testAccPipelineResourceConfig_basic("main"),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttrSet("okteto_pipeline.test", "id"),
-					resource.TestCheckResourceAttr("okteto_pipeline.test", "name", "okteto_aws_lambda"),
-					resource.TestCheckResourceAttr("okteto_pipeline.test", "repo_url", "https://github.com/skyscrapr/okteto-pipeline-test.git"),
+					resource.TestCheckResourceAttr("okteto_pipeline.test", "name", "okteto_aws_s3"),
+					resource.TestCheckResourceAttr("okteto_pipeline.test", "repo_url", "https://github.com/skyscrapr/oktetodo-terraform-s3.git"),
 					resource.TestCheckResourceAttr("okteto_pipeline.test", "branch", "main"),
 				),
 			},
@@ -60,7 +70,7 @@ func TestAccPipelineResourceFailedDestroy(t *testing.T) {
 }
 
 func TestAccPipelineResource_complex(t *testing.T) {
-	t.Skip("Skip due to inability to destroy correctly")
+	t.Skip("Skip due to time to test")
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
@@ -85,15 +95,33 @@ func TestAccPipelineResource_complex(t *testing.T) {
 	})
 }
 
+// func testAccPipelineResourceConfig_basic(branch string) string {
+// 	return fmt.Sprintf(`
+// provider okteto {
+// 	namespace = "skyscrapr"
+// }
+
+// resource "okteto_pipeline" "test" {
+//   name = "okteto_aws_lambda"
+//   repo_url = "https://github.com/skyscrapr/okteto-pipeline-test.git"
+//   branch = "%s"
+// }
+// `, branch)
+// }
+
 func testAccPipelineResourceConfig_basic(branch string) string {
 	return fmt.Sprintf(`
+provider "aws" {
+	region = "us-east-1"
+}
+
 provider okteto {
 	namespace = "skyscrapr"
 }
 
 resource "okteto_pipeline" "test" {
-  name = "okteto_aws_lambda"
-  repo_url = "https://github.com/skyscrapr/okteto-pipeline-test.git"
+  name = "okteto_aws_s3"
+  repo_url = "https://github.com/skyscrapr/oktetodo-terraform-s3.git"
   branch = "%s"
 }
 `, branch)

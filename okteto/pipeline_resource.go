@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework-timeouts/resource/timeouts"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -33,13 +35,14 @@ type PipelineResource struct {
 }
 
 // PipelineResourceModel describes the resource data model.
-type PipelineResourceModel struct {
+type pipelineResourceModel struct {
 	Status   types.String   `tfsdk:"status"`
 	Branch   types.String   `tfsdk:"branch"`
 	RepoURL  types.String   `tfsdk:"repo_url"`
 	Name     types.String   `tfsdk:"name"`
 	Id       types.String   `tfsdk:"id"`
 	Timeouts timeouts.Value `tfsdk:"timeouts"`
+	Deployments types.Set `tfsdk:"deployments"`
 }
 
 func (r *PipelineResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -84,6 +87,17 @@ func (r *PipelineResource) Schema(ctx context.Context, req resource.SchemaReques
 					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
+			"deployments": schema.SetNestedAttribute{
+				Computed: true,
+				NestedObject: schema.NestedAttributeObject{
+					Attributes: map[string]schema.Attribute{
+						"endpoints": schema.SetAttribute{
+							ElementType: types.StringType,
+							Computed:    true,
+						},
+					},
+				},
+			},
 		},
 		Blocks: map[string]schema.Block{
 			"timeouts": timeouts.Block(ctx, timeouts.Opts{
@@ -115,7 +129,7 @@ func (r *PipelineResource) Configure(ctx context.Context, req resource.Configure
 }
 
 func (r *PipelineResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	var data *PipelineResourceModel
+	var data *pipelineResourceModel
 
 	// Read Terraform plan data into the model
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
@@ -157,10 +171,14 @@ func (r *PipelineResource) Create(ctx context.Context, req resource.CreateReques
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to wait for pipeline state to be %s, got error: %s", data.Name.ValueString(), err))
 		return
 	}
+
+	resp.Diagnostics.Append(data.refresh(ctx, r.client)...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
+	
 }
 
 func (r *PipelineResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	var data *PipelineResourceModel
+	var data *pipelineResourceModel
 
 	// Read Terraform prior state data into the model
 	resp.Diagnostics.Append(req.State.Get(ctx, &data)...)
@@ -168,15 +186,8 @@ func (r *PipelineResource) Read(ctx context.Context, req resource.ReadRequest, r
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	pipeline, err := r.client.GetPipeline(r.client.Namespace, data.Name.ValueString())
-	if err != nil {
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to get pipeline, got error: %s", err))
-		return
-	}
-	v, _ := pipeline["status"].(string)
-	data.Status = types.StringValue(v)
-	// tflog.Trace(ctx, "read secret")
-	// Save updated data into Terraform state
+
+	resp.Diagnostics.Append(data.refresh(ctx, r.client)...)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
@@ -185,7 +196,7 @@ func (r *PipelineResource) Update(ctx context.Context, req resource.UpdateReques
 }
 
 func (r *PipelineResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	var data *PipelineResourceModel
+	var data *pipelineResourceModel
 
 	// Read Terraform prior state data into the model
 	resp.Diagnostics.Append(req.State.Get(ctx, &data)...)
@@ -298,4 +309,51 @@ func getPipelineState(client *Client, pipelineName string) (string, error) {
 		fmt.Printf("Pipeline %s status: %s\n", pipelineName, status)
 	}
 	return status, err
+}
+
+func flattenDeployments(ctx context.Context, set interface{}) (types.Set, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
+	attributeTypes := map[string]attr.Type{}
+	attributeTypes["endpoints"] = types.SetType{ElemType: types.StringType}
+	elemType := types.ObjectType{AttrTypes: attributeTypes}
+
+	deployments, ok := set.([]map[string]interface{})
+	if !ok {
+		diags.AddError("Client Error", "Could not get deployments data")
+		return types.SetNull(elemType), diags
+	}
+
+	attrs := make([]attr.Value, 0, len(deployments))
+	for _, d := range(deployments) {
+		attr := map[string]attr.Value{}
+		endpoints, _ := d["endpoints"].([]interface{})
+		newEndpoints := make([]string, len(endpoints))
+		for i, e := range(endpoints) {
+			newEndpoint, _ := e.(map[string]interface{})
+			newEndpoints[i] = newEndpoint["url"].(string)
+		}
+		//model.Endpoints = types.SetValueMust(types.StringType, newEndpoints)
+		attr["endpoints"], diags = types.SetValueFrom(ctx, types.StringType, newEndpoints)
+		val := types.ObjectValueMust(attributeTypes, attr)
+		attrs = append(attrs, val)
+	}
+	
+	return types.SetValueMust(elemType, attrs), diags
+}
+
+func (data *pipelineResourceModel) refresh(ctx context.Context, client *Client) diag.Diagnostics {
+	var diags diag.Diagnostics
+
+	pipeline, err := client.GetPipeline(client.Namespace, data.Name.ValueString())
+	if err != nil {
+		diags.AddError("Client Error", fmt.Sprintf("Unable to get pipeline, got error: %s", err))
+		return diags
+	}
+
+	v, _ := pipeline["status"].(string)
+	data.Status = types.StringValue(v)
+	data.Deployments, diags = flattenDeployments(ctx, pipeline["deployments"])
+
+	return diags
 }
